@@ -134,11 +134,13 @@ void interpret(Interpreter *intr, Command *commands) {
             }
 
             case CMD_LSR: {
-                int64_t val_a = fetch_number_value(intr, &current->val_a, current->is_a_immediate);
-                int64_t val_b = fetch_number_value(intr, &current->val_b, current->is_b_immediate);
-                intr->variables[(int) current->destination.base] = val_a >> val_b;
+                int64_t  val_a = fetch_number_value(intr, &current->val_a, current->is_a_immediate);
+                int64_t  val_b = fetch_number_value(intr, &current->val_b, current->is_b_immediate);
+                uint64_t uval_a = (uint64_t) val_a;
+                uint64_t result = uval_a >> val_b;
 
-                current = current->next;
+                intr->variables[(int) current->destination.base] = result;
+                current                                          = current->next;
                 break;
             }
 
@@ -162,13 +164,13 @@ void interpret(Interpreter *intr, Command *commands) {
                 }
 
                 uint8_t data[8] = {0};
-                if (!mem_load(data, address, size)) {
+                if (!mem_load(data, (size_t) address, (size_t) size)) {
                     intr->had_error = true;
                     break;
                 }
 
                 intr->variables[(int) current->destination.base] = *((int64_t *) data);
-                current = current->next;
+                current                                          = current->next;
                 break;
             }
 
@@ -177,12 +179,10 @@ void interpret(Interpreter *intr, Command *commands) {
                 int64_t address =
                     fetch_number_value(intr, &current->val_b, current->is_b_immediate);
                 int64_t size = current->destination.num_val;
-
-                if (!mem_store((uint8_t *) &value, address, size)) {
+                if (!mem_store((uint8_t *) &value, (size_t) address, (size_t) size)) {
                     intr->had_error = true;
                     break;
                 }
-
                 current = current->next;
                 break;
             }
@@ -260,9 +260,9 @@ void print_interpreter_state(Interpreter *intr) {
  */
 static int64_t fetch_number_value(Interpreter *intr, Operand *op, bool is_im) {
     if (is_im) {
-        return op->num_val;  // Return the immediate value
+        return op->num_val;
     } else {
-        return intr->variables[op->num_val];  // Return the value from the variable
+        return intr->variables[(int) op->base];
     }
 }
 
@@ -291,31 +291,39 @@ static bool print_base(Interpreter *intr, Command *cmd) {
     int64_t     value = fetch_number_value(intr, &cmd->val_b, cmd->is_b_immediate);
 
     if (base[0] == 's') {
-        char buffer[256] = {0};
-        if (!mem_load((uint8_t *) buffer, value, sizeof(buffer) - 1)) {
-            intr->had_error = true;
-            return false;
+        char   buffer[256] = {0};
+        size_t i           = 0;
+        while (i < sizeof(buffer) - 1) {
+            if (!mem_load((uint8_t *) &buffer[i], value + i, 1)) {
+                intr->had_error = true;
+                return false;
+            }
+            if (buffer[i] == '\0') {
+                break;
+            }
+            i++;
         }
-        printf("%s", buffer);
+        printf("%s\n", buffer);
     } else if (base[0] == 'd') {
         printf("%" PRId64 "\n", value);
     } else if (base[0] == 'x') {
         printf("0x%" PRIx64 "\n", (uint64_t) value);
     } else if (base[0] == 'b') {
-        char binary[65] = {0};  
-        int  started    = 0;  
-        int  index      = 0;
+        char     binary[65] = {0};
+        int      started    = 0;
+        int      index      = 0;
+        uint64_t uvalue     = (uint64_t) value;
 
         for (int i = 63; i >= 0; i--) {
-            char bit = ((value >> i) & 1) ? '1' : '0';
+            char bit = ((uvalue >> i) & 1) ? '1' : '0';
 
-            if (bit == '1' || started) { 
+            if (bit == '1' || started) {
                 started         = 1;
                 binary[index++] = bit;
             }
         }
 
-        if (!started) { 
+        if (!started) {
             binary[0] = '0';
             binary[1] = '\0';
         }

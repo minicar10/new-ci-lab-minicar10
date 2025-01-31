@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Directories
-TEST_DIR="testcases/week3"
+TEST_DIR="testcases/week2"
 INPUT_DIR="inputs"
 OUTPUT_DIR="outputs"
 TMP_DIR="tmp_outputs"  # Temporary directory for intermediate outputs

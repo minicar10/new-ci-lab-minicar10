@@ -136,8 +136,18 @@ static bool is_base(Token token) {
  * @return True if the current token was parsed as a base, false otherwise.
  */
 static bool parse_base(Parser *parser, Operand *op) {
-    // STUDENT TODO: Parse the current token as a base
-    return false;
+    if (!is_base(parser->current)) {
+        return false;
+    }
+    size_t str_len = parser->current.length;
+    op->str_val    = malloc(str_len + 1);
+    if (!op->str_val) {
+        return false;
+    }
+    memcpy(op->str_val, parser->current.lexeme, str_len);
+    op->str_val[str_len] = '\0';
+    advance(parser);
+    return true;
 }
 
 /**
@@ -244,6 +254,10 @@ static bool parse_im(Parser *parser, Operand *op) {
         }
     }
 
+    if (value > (uint64_t) INT64_MAX) {
+        value = INT64_MAX;
+    }
+
     op->num_val = value;
     advance(parser);
     return true;
@@ -309,7 +323,6 @@ static bool parse_var_or_imm(Parser *parser, Operand *op, bool *is_immediate) {
         return true;
     }
 
-    advance(parser);
     return false;
 }
 
@@ -435,12 +448,12 @@ static Command *parse_cmd(Parser *parser) {
                 return NULL;
             }
 
-            bool is_immediate_a = false;
-            if (!parse_var_or_imm(parser, &cmd->val_a, &is_immediate_a)) {
+            if (!parse_variable_operand(parser, &cmd->val_a)) {
                 parser->had_error = true;
                 free_command(cmd);
                 return NULL;
             }
+            cmd->is_a_immediate = false;
 
             bool is_immediate_b = false;
             if (!parse_var_or_imm(parser, &cmd->val_b, &is_immediate_b)) {
@@ -448,8 +461,6 @@ static Command *parse_cmd(Parser *parser) {
                 free_command(cmd);
                 return NULL;
             }
-
-            cmd->is_a_immediate = is_immediate_a;
             cmd->is_b_immediate = is_immediate_b;
 
             if (parser->current.type != TOK_NL && parser->current.type != TOK_EOF) {
@@ -468,7 +479,6 @@ static Command *parse_cmd(Parser *parser) {
                 parser->had_error = true;
                 return NULL;
             }
-
             advance(parser);
 
             if (!parse_variable_operand(parser, &cmd->destination)) {
@@ -477,21 +487,23 @@ static Command *parse_cmd(Parser *parser) {
                 return NULL;
             }
 
-            bool is_immediate = false;
-            if (!parse_var_or_imm(parser, &cmd->val_a, &is_immediate) || !is_immediate) {
+            if (parser->current.type != TOK_NUM) {
                 parser->had_error = true;
                 free_command(cmd);
                 return NULL;
             }
-
-            cmd->is_a_immediate = is_immediate;
+            if (!parse_im(parser, &cmd->val_a)) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
+            cmd->is_a_immediate = true;
 
             if (parser->current.type != TOK_NL && parser->current.type != TOK_EOF) {
                 parser->had_error = true;
                 free_command(cmd);
                 return NULL;
             }
-
             advance(parser);
             return cmd;
         }
@@ -536,15 +548,14 @@ static Command *parse_cmd(Parser *parser) {
                 parser->had_error = true;
                 return NULL;
             }
-
             advance(parser);
 
-            bool is_immediate_a = false;
-            if (!parse_var_or_imm(parser, &cmd->val_a, &is_immediate_a)) {
+            if (!parse_variable_operand(parser, &cmd->val_a)) {
                 parser->had_error = true;
                 free_command(cmd);
                 return NULL;
             }
+            cmd->is_a_immediate = false;
 
             bool is_immediate_b = false;
             if (!parse_var_or_imm(parser, &cmd->val_b, &is_immediate_b)) {
@@ -552,8 +563,6 @@ static Command *parse_cmd(Parser *parser) {
                 free_command(cmd);
                 return NULL;
             }
-
-            cmd->is_a_immediate = is_immediate_a;
             cmd->is_b_immediate = is_immediate_b;
 
             if (parser->current.type != TOK_NL && parser->current.type != TOK_EOF) {
@@ -561,7 +570,6 @@ static Command *parse_cmd(Parser *parser) {
                 free_command(cmd);
                 return NULL;
             }
-
             advance(parser);
             return cmd;
         }
@@ -583,21 +591,11 @@ static Command *parse_cmd(Parser *parser) {
             }
             cmd->is_b_immediate = is_immediate;
 
-            if (!is_base(parser->current)) {
+            if (!parse_base(parser, &cmd->val_a)) {
                 parser->had_error = true;
                 free_command(cmd);
                 return NULL;
             }
-            size_t str_len     = strlen(parser->current.lexeme) + 1;
-            cmd->val_a.str_val = malloc(str_len);
-            if (!cmd->val_a.str_val) {
-                parser->had_error = true;
-                free_command(cmd);
-                return NULL;
-            }
-            memcpy(cmd->val_a.str_val, parser->current.lexeme, str_len);
-
-            advance(parser);
 
             if (parser->current.type != TOK_NL && parser->current.type != TOK_EOF) {
                 parser->had_error = true;
@@ -863,6 +861,8 @@ static Command *parse_cmd(Parser *parser) {
                 return NULL;
             }
 
+            cmd->is_a_immediate = is_immediate_offset;
+
             bool is_immediate_address = false;
             if (!parse_var_or_imm(parser, &cmd->val_b, &is_immediate_address)) {
                 parser->had_error = true;
@@ -938,16 +938,20 @@ static Command *parse_cmd(Parser *parser) {
                 free_command(cmd);
                 return NULL;
             }
-            size_t str_len     = strlen(parser->current.lexeme) + 1;
-            cmd->val_a.str_val = malloc(str_len);
+
+            size_t str_len = parser->current.length;
+
+            cmd->val_a.str_val = malloc(str_len + 1);
             if (!cmd->val_a.str_val) {
                 parser->had_error = true;
                 free_command(cmd);
                 return NULL;
             }
-            memcpy(cmd->val_a.str_val, parser->current.lexeme, str_len);
 
-            cmd->is_a_immediate = true;
+            memcpy(cmd->val_a.str_val, parser->current.lexeme, str_len);
+            cmd->val_a.str_val[str_len] = '\0';
+            cmd->is_a_string            = true;
+
             advance(parser);
 
             bool is_immediate_address = false;
