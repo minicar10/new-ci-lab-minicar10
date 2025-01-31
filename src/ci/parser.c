@@ -1,8 +1,9 @@
+#include "parser.h"
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include "parser.h"
+#include <string.h>
 
 #include "command_type.h"
 #include "token_type.h"
@@ -571,13 +572,6 @@ static Command *parse_cmd(Parser *parser) {
                 parser->had_error = true;
                 return NULL;
             }
-            advance(parser);
-
-            if (!is_base(parser->current)) {
-                parser->had_error = true;
-                free_command(cmd);
-                return NULL;
-            }
 
             advance(parser);
 
@@ -587,8 +581,382 @@ static Command *parse_cmd(Parser *parser) {
                 free_command(cmd);
                 return NULL;
             }
+            cmd->is_b_immediate = is_immediate;
+
+            if (!is_base(parser->current)) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
+            size_t str_len     = strlen(parser->current.lexeme) + 1;
+            cmd->val_a.str_val = malloc(str_len);
+            if (!cmd->val_a.str_val) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
+            memcpy(cmd->val_a.str_val, parser->current.lexeme, str_len);
+
+            advance(parser);
+
+            if (parser->current.type != TOK_NL && parser->current.type != TOK_EOF) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
+
+            advance(parser);
+            return cmd;
+        }
+
+        case TOK_AND: {
+            Command *cmd = create_command(CMD_AND);
+            if (!cmd) {
+                parser->had_error = true;
+                return NULL;
+            }
+
+            advance(parser);
+
+            if (!parse_variable_operand(parser, &cmd->destination)) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
+
+            if (!parse_variable_operand(parser, &cmd->val_a)) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
+
+            if (!parse_variable_operand(parser, &cmd->val_b)) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
+
+            if (parser->current.type != TOK_NL && parser->current.type != TOK_EOF) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
+
+            advance(parser);
+            return cmd;
+        }
+
+        case TOK_EOR: {
+            Command *cmd = create_command(CMD_EOR);
+            if (!cmd) {
+                parser->had_error = true;
+                return NULL;
+            }
+
+            advance(parser);
+
+            if (!parse_variable_operand(parser, &cmd->destination)) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
+
+            if (!parse_variable_operand(parser, &cmd->val_a)) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
+
+            if (!parse_variable_operand(parser, &cmd->val_b)) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
+
+            if (parser->current.type != TOK_NL && parser->current.type != TOK_EOF) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
+
+            advance(parser);
+            return cmd;
+        }
+
+        case TOK_ORR: {
+            Command *cmd = create_command(CMD_ORR);
+            if (!cmd) {
+                parser->had_error = true;
+                return NULL;
+            }
+
+            advance(parser);
+
+            if (!parse_variable_operand(parser, &cmd->destination)) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
+
+            if (!parse_variable_operand(parser, &cmd->val_a)) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
+
+            if (!parse_variable_operand(parser, &cmd->val_b)) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
+
+            if (parser->current.type != TOK_NL && parser->current.type != TOK_EOF) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
+
+            advance(parser);
+            return cmd;
+        }
+
+        case TOK_LSL: {
+            Command *cmd = create_command(CMD_LSL);
+            if (!cmd) {
+                parser->had_error = true;
+                return NULL;
+            }
+
+            advance(parser);
+
+            if (!parse_variable_operand(parser, &cmd->destination)) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
+
+            if (!parse_variable_operand(parser, &cmd->val_a)) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
+
+            bool is_immediate = false;
+            if (!parse_var_or_imm(parser, &cmd->val_b, &is_immediate)) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
 
             cmd->is_b_immediate = is_immediate;
+
+            if (parser->current.type != TOK_NL && parser->current.type != TOK_EOF) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
+
+            advance(parser);
+            return cmd;
+        }
+
+        case TOK_LSR: {
+            Command *cmd = create_command(CMD_LSR);
+            if (!cmd) {
+                parser->had_error = true;
+                return NULL;
+            }
+
+            advance(parser);
+
+            if (!parse_variable_operand(parser, &cmd->destination)) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
+
+            if (!parse_variable_operand(parser, &cmd->val_a)) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
+
+            bool is_immediate = false;
+            if (!parse_var_or_imm(parser, &cmd->val_b, &is_immediate)) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
+
+            cmd->is_b_immediate = is_immediate;
+
+            if (parser->current.type != TOK_NL && parser->current.type != TOK_EOF) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
+
+            advance(parser);
+            return cmd;
+        }
+
+        case TOK_ASR: {
+            Command *cmd = create_command(CMD_ASR);
+            if (!cmd) {
+                parser->had_error = true;
+                return NULL;
+            }
+
+            advance(parser);
+
+            if (!parse_variable_operand(parser, &cmd->destination)) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
+
+            if (!parse_variable_operand(parser, &cmd->val_a)) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
+
+            bool is_immediate = false;
+            if (!parse_var_or_imm(parser, &cmd->val_b, &is_immediate)) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
+
+            cmd->is_b_immediate = is_immediate;
+
+            if (parser->current.type != TOK_NL && parser->current.type != TOK_EOF) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
+
+            advance(parser);
+            return cmd;
+        }
+
+        case TOK_LOAD: {
+            Command *cmd = create_command(CMD_LOAD);
+            if (!cmd) {
+                parser->had_error = true;
+                return NULL;
+            }
+
+            advance(parser);
+
+            if (!parse_variable_operand(parser, &cmd->destination)) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
+
+            bool is_immediate_offset = false;
+            if (!parse_var_or_imm(parser, &cmd->val_a, &is_immediate_offset) ||
+                !is_immediate_offset) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
+
+            bool is_immediate_address = false;
+            if (!parse_var_or_imm(parser, &cmd->val_b, &is_immediate_address)) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
+            cmd->is_b_immediate = is_immediate_address;
+
+            if (parser->current.type != TOK_NL && parser->current.type != TOK_EOF) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
+
+            advance(parser);
+            return cmd;
+        }
+
+        case TOK_STORE: {
+            Command *cmd = create_command(CMD_STORE);
+            if (!cmd) {
+                parser->had_error = true;
+                return NULL;
+            }
+
+            advance(parser);
+
+            bool is_immediate_src = false;
+            if (!parse_var_or_imm(parser, &cmd->val_a, &is_immediate_src) || !is_immediate_src) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
+            cmd->is_a_immediate = is_immediate_src;
+
+            bool is_immediate_address = false;
+            if (!parse_var_or_imm(parser, &cmd->val_b, &is_immediate_address)) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
+
+            cmd->is_b_immediate = is_immediate_address;
+
+            bool is_immediate_size = false;
+            if (!parse_var_or_imm(parser, &cmd->destination, &is_immediate_size) ||
+                !is_immediate_size) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
+
+            if (parser->current.type != TOK_NL && parser->current.type != TOK_EOF) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
+
+            advance(parser);
+            return cmd;
+        }
+
+        case TOK_PUT: {
+            Command *cmd = create_command(CMD_PUT);
+            if (!cmd) {
+                parser->had_error = true;
+                return NULL;
+            }
+            advance(parser);
+
+            if (parser->current.type != TOK_STR) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
+            size_t str_len     = strlen(parser->current.lexeme) + 1;
+            cmd->val_a.str_val = malloc(str_len);
+            if (!cmd->val_a.str_val) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
+            memcpy(cmd->val_a.str_val, parser->current.lexeme, str_len);
+
+            cmd->is_a_immediate = true;
+            advance(parser);
+
+            bool is_immediate_address = false;
+            if (!parse_var_or_imm(parser, &cmd->val_b, &is_immediate_address)) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
+            cmd->is_b_immediate = is_immediate_address;
 
             if (parser->current.type != TOK_NL && parser->current.type != TOK_EOF) {
                 parser->had_error = true;

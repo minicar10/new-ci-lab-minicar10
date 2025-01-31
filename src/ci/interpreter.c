@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "command_type.h"
 #include "mem.h"
@@ -37,8 +38,8 @@ void interpret(Interpreter *intr, Command *commands) {
     while (current && !intr->had_error) {
         switch (current->type) {
             case CMD_ADD: {
-                int64_t val_a = current->is_a_immediate ? current->val_a.num_val : intr->variables[(int) current->val_a.base];
-                int64_t val_b = current->is_b_immediate ? current->val_b.num_val : intr->variables[(int) current->val_b.base];
+                int64_t val_a = fetch_number_value(intr, &current->val_a, current->is_a_immediate);
+                int64_t val_b = fetch_number_value(intr, &current->val_b, current->is_b_immediate);
                 intr->variables[(int) current->destination.base] = val_a + val_b;
 
                 current = current->next;
@@ -46,8 +47,8 @@ void interpret(Interpreter *intr, Command *commands) {
             }
 
             case CMD_SUB: {
-                int64_t val_a = current->is_a_immediate ? current->val_a.num_val : intr->variables[(int) current->val_a.base];
-                int64_t val_b = current->is_b_immediate? current->val_b.num_val : intr->variables[(int) current->val_b.base];
+                int64_t val_a = fetch_number_value(intr, &current->val_a, current->is_a_immediate);
+                int64_t val_b = fetch_number_value(intr, &current->val_b, current->is_b_immediate);
                 intr->variables[(int) current->destination.base] = val_a - val_b;
 
                 current = current->next;
@@ -55,7 +56,7 @@ void interpret(Interpreter *intr, Command *commands) {
             }
 
             case CMD_MOV: {
-                int64_t value = current->is_a_immediate ? current->val_a.num_val: intr->variables[(int) current->val_a.base];
+                int64_t value = fetch_number_value(intr, &current->val_a, current->is_a_immediate);
                 intr->variables[(int) current->destination.base] = value;
 
                 current = current->next;
@@ -63,8 +64,8 @@ void interpret(Interpreter *intr, Command *commands) {
             }
 
             case CMD_CMP: {
-                int64_t val_a = current->is_a_immediate ? current->val_a.num_val : intr->variables[(int) current->val_a.base];
-                int64_t val_b = current->is_b_immediate ? current->val_b.num_val : intr->variables[(int) current->val_b.base];
+                int64_t val_a = fetch_number_value(intr, &current->val_a, current->is_a_immediate);
+                int64_t val_b = fetch_number_value(intr, &current->val_b, current->is_b_immediate);
 
                 intr->is_greater = (val_a > val_b);
                 intr->is_equal   = (val_a == val_b);
@@ -75,8 +76,10 @@ void interpret(Interpreter *intr, Command *commands) {
             }
 
             case CMD_CMP_U: {
-                uint64_t val_a = current->is_a_immediate ? (uint64_t) current->val_a.num_val : (uint64_t) intr->variables[(int) current->val_a.base];
-                uint64_t val_b = current->is_b_immediate ? (uint64_t) current->val_b.num_val : (uint64_t) intr->variables[(int) current->val_b.base];
+                uint64_t val_a =
+                    (uint64_t) fetch_number_value(intr, &current->val_a, current->is_a_immediate);
+                uint64_t val_b =
+                    (uint64_t) fetch_number_value(intr, &current->val_b, current->is_b_immediate);
 
                 intr->is_greater = (val_a > val_b);
                 intr->is_equal   = (val_a == val_b);
@@ -87,20 +90,120 @@ void interpret(Interpreter *intr, Command *commands) {
             }
 
             case CMD_PRINT: {
-                const char *base = current->val_a.str_val;
-                int64_t value = current->is_b_immediate ? current->val_b.num_val : intr->variables[(int) current->val_b.base];
-
-                if (base[0] == 'd') {
-                    printf("%" PRId64 "\n", value); 
-                } else if (base[0] == 'x') {
-                    printf("%" PRIx64 "\n", (uint64_t) value); 
-                } else if (base[0] == 'b') {
-                    for (int i = 63; i >= 0; i--) {
-                        printf("%c", (value & ((int64_t) 1 << i)) ? '1' : '0');
-                    }
-                    printf("\n");
-                } else {
+                if (!print_base(intr, current)) {
                     intr->had_error = true;
+                }
+                current = current->next;
+                break;
+            }
+
+            case CMD_AND: {
+                int64_t val_a = fetch_number_value(intr, &current->val_a, current->is_a_immediate);
+                int64_t val_b = fetch_number_value(intr, &current->val_b, current->is_b_immediate);
+                intr->variables[(int) current->destination.base] = val_a & val_b;
+
+                current = current->next;
+                break;
+            }
+
+            case CMD_EOR: {
+                int64_t val_a = fetch_number_value(intr, &current->val_a, current->is_a_immediate);
+                int64_t val_b = fetch_number_value(intr, &current->val_b, current->is_b_immediate);
+                intr->variables[(int) current->destination.base] = val_a ^ val_b;
+
+                current = current->next;
+                break;
+            }
+
+            case CMD_ORR: {
+                int64_t val_a = fetch_number_value(intr, &current->val_a, current->is_a_immediate);
+                int64_t val_b = fetch_number_value(intr, &current->val_b, current->is_b_immediate);
+                intr->variables[(int) current->destination.base] = val_a | val_b;
+
+                current = current->next;
+                break;
+            }
+
+            case CMD_LSL: {
+                int64_t val_a = fetch_number_value(intr, &current->val_a, current->is_a_immediate);
+                int64_t val_b = fetch_number_value(intr, &current->val_b, current->is_b_immediate);
+                intr->variables[(int) current->destination.base] = val_a << val_b;
+
+                current = current->next;
+                break;
+            }
+
+            case CMD_LSR: {
+                int64_t val_a = fetch_number_value(intr, &current->val_a, current->is_a_immediate);
+                int64_t val_b = fetch_number_value(intr, &current->val_b, current->is_b_immediate);
+                intr->variables[(int) current->destination.base] = val_a >> val_b;
+
+                current = current->next;
+                break;
+            }
+
+            case CMD_ASR: {
+                int64_t val_a = fetch_number_value(intr, &current->val_a, current->is_a_immediate);
+                int64_t val_b = fetch_number_value(intr, &current->val_b, current->is_b_immediate);
+                intr->variables[(int) current->destination.base] = val_a >> val_b;
+
+                current = current->next;
+                break;
+            }
+
+            case CMD_LOAD: {
+                int64_t size = fetch_number_value(intr, &current->val_a, current->is_a_immediate);
+                int64_t address =
+                    fetch_number_value(intr, &current->val_b, current->is_b_immediate);
+
+                if (size != 1 && size != 2 && size != 4 && size != 8) {
+                    intr->had_error = true;
+                    break;
+                }
+
+                uint8_t data[8] = {0};
+                if (!mem_load(data, address, size)) { 
+                    intr->had_error = true;
+                    break;
+                }
+
+                intr->variables[(int) current->destination.num_val] = *((int64_t *) data);
+                current                                             = current->next;
+                break;
+            }
+
+            case CMD_STORE: {
+                int64_t value = fetch_number_value(intr, &current->val_a, current->is_a_immediate);
+                int64_t address =
+                    fetch_number_value(intr, &current->val_b, current->is_b_immediate);
+                int64_t size = current->destination.num_val;
+
+                if (!mem_store((uint8_t *) &value, address, size)) {
+                    intr->had_error = true;
+                    break;
+                }
+
+                current = current->next;
+                break;
+            }
+
+            case CMD_PUT: {
+                const char *str = current->val_a.str_val;
+                int64_t     address =
+                    fetch_number_value(intr, &current->val_b, current->is_b_immediate);
+
+                if (!str || address < 0) {
+                    intr->had_error = true;
+                    break;
+                }
+
+                size_t length = strlen(str) + 1;
+
+                for (size_t i = 0; i < length; i++) {
+                    if (!mem_store((uint8_t *) &str[i], address + i, 1)) {
+                        intr->had_error = true;
+                        break;
+                    }
                 }
 
                 current = current->next;
@@ -109,7 +212,7 @@ void interpret(Interpreter *intr, Command *commands) {
 
             default:
                 intr->had_error = true;
-                current = current->next;
+                current         = current->next;
                 break;
         }
     }
@@ -184,6 +287,30 @@ static bool cond_holds(Interpreter *intr, BranchCondition cond) {
  * @return True whether the print was successful, false otherwise.
  */
 static bool print_base(Interpreter *intr, Command *cmd) {
-    // STUDENT TODO: Print the given value respecting the appropriate base
-    return false;
+    const char *base  = cmd->val_a.str_val;
+    int64_t     value = fetch_number_value(intr, &cmd->val_b, cmd->is_b_immediate);
+
+    if (base[0] == 's') {
+        char buffer[256] = {0};
+        if (!mem_load((uint8_t *) buffer, value, sizeof(buffer) - 1)) {
+            intr->had_error = true;
+            return false;
+        }
+        printf("%s", buffer);
+    } else if (base[0] == 'd') {
+        printf("%" PRId64, value);
+    } else if (base[0] == 'x') {
+        printf("0x%" PRIx64, (uint64_t) value);
+    } else if (base[0] == 'b') {
+        char binary[65] = {0};
+        for (int i = 63; i >= 0; i--) {
+            binary[63 - i] = ((value >> i) & 1) ? '1' : '0';
+        }
+        printf("0b%s", binary);
+    } else {
+        intr->had_error = true;
+        return false;
+    }
+
+    return true;
 }
