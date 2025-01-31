@@ -167,8 +167,8 @@ void interpret(Interpreter *intr, Command *commands) {
                     break;
                 }
 
-                intr->variables[(int) current->destination.num_val] = *((int64_t *) data);
-                current                                             = current->next;
+                intr->variables[(int) current->destination.base] = *((int64_t *) data);
+                current = current->next;
                 break;
             }
 
