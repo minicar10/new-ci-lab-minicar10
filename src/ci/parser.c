@@ -394,7 +394,7 @@ static Command *parse_cmd(Parser *parser) {
             }
 
             bool is_immediate_a = false;
-            if (!parse_var_or_imm(parser, &cmd->val_a, &is_immediate_a)) {
+            if (!parse_variable_operand(parser, &cmd->val_a)) {
                 parser->had_error = true;
                 free_command(cmd);
                 return NULL;
@@ -540,7 +540,7 @@ static Command *parse_cmd(Parser *parser) {
             advance(parser);
 
             bool is_immediate_a = false;
-            if (!parse_variable_operand(parser, &cmd->val_a)) {
+            if (!parse_var_or_imm(parser, &cmd->val_a, &is_immediate_a)) {
                 parser->had_error = true;
                 free_command(cmd);
                 return NULL;
