@@ -596,6 +596,7 @@ static Command *parse_cmd(Parser *parser) {
                 free_command(cmd);
                 return NULL;
             }
+            cmd->is_a_string = true;
 
             if (parser->current.type != TOK_NL && parser->current.type != TOK_EOF) {
                 parser->had_error = true;
@@ -603,7 +604,7 @@ static Command *parse_cmd(Parser *parser) {
                 return NULL;
             }
 
-            advance(parser);
+            advance(parser); 
             return cmd;
         }
 
