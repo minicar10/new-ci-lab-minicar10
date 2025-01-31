@@ -162,7 +162,7 @@ void interpret(Interpreter *intr, Command *commands) {
                 }
 
                 uint8_t data[8] = {0};
-                if (!mem_load(data, address, size)) { 
+                if (!mem_load(data, address, size)) {
                     intr->had_error = true;
                     break;
                 }
@@ -298,15 +298,29 @@ static bool print_base(Interpreter *intr, Command *cmd) {
         }
         printf("%s", buffer);
     } else if (base[0] == 'd') {
-        printf("%" PRId64, value);
+        printf("%" PRId64 "\n", value);
     } else if (base[0] == 'x') {
-        printf("0x%" PRIx64, (uint64_t) value);
+        printf("0x%" PRIx64 "\n", (uint64_t) value);
     } else if (base[0] == 'b') {
-        char binary[65] = {0};
+        char binary[65] = {0};  
+        int  started    = 0;  
+        int  index      = 0;
+
         for (int i = 63; i >= 0; i--) {
-            binary[63 - i] = ((value >> i) & 1) ? '1' : '0';
+            char bit = ((value >> i) & 1) ? '1' : '0';
+
+            if (bit == '1' || started) { 
+                started         = 1;
+                binary[index++] = bit;
+            }
         }
-        printf("0b%s", binary);
+
+        if (!started) { 
+            binary[0] = '0';
+            binary[1] = '\0';
+        }
+
+        printf("0b%s\n", binary);
     } else {
         intr->had_error = true;
         return false;
