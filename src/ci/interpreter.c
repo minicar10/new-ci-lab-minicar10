@@ -162,7 +162,7 @@ void interpret(Interpreter *intr, Command *commands) {
                 }
 
                 uint8_t data[8] = {0};
-                if (!mem_load(data, address, size)) { 
+                if (!mem_load(data, address, size)) {
                     intr->had_error = true;
                     break;
                 }
