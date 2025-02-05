@@ -1,7 +1,8 @@
+#include "label_map.h"
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>
-#include "label_map.h"
+#include <string.h>
 
 static void          free_entry(Entry *e);
 static void          free_entries(Entry *e);
@@ -9,7 +10,14 @@ static unsigned long hash_function(char *s);
 static Entry        *entry_init(char *id, Command *command);
 
 bool label_map_init(LabelMap *map, int capacity) {
-    // STUDENT TODO: Initialize the fields of the label map
+    if (!map || capacity <= 0) {
+        return false;
+    }
+    map->capacity = capacity;
+    map->entries  = (Entry **) calloc(capacity, sizeof(Entry *));
+    if (!map->entries) {
+        return false;
+    }
     return true;
 }
 
@@ -19,8 +27,10 @@ bool label_map_init(LabelMap *map, int capacity) {
  * @param e The pointer to the entry to free.
  */
 static void free_entry(Entry *e) {
-    // STUDENT TODO: Free a *singular* entry
-    // Do not free children; see below
+    if (!e)
+        return;
+    free(e->id);
+    free(e);
 }
 
 /**
@@ -29,12 +39,20 @@ static void free_entry(Entry *e) {
  * @param e A pointer to the first entry to free.
  */
 static void free_entries(Entry *e) {
-    // STUDENT TODO: Free an entry and its children
+    while (e) {
+        Entry *next = e->next;
+        free_entry(e);
+        e = next;
+    }
 }
 
 void label_map_free(LabelMap *map) {
-    // STUDENT TODO: Free the entries associated with this hashmap
-    // Do not free the pointer itself, as you do not know whether it was allocated on the heap
+    if (!map || !map->entries)
+        return;
+    for (int i = 0; i < map->capacity; i++) {
+        free_entries(map->entries[i]);
+    }
+    free(map->entries);
 }
 
 /**
@@ -48,7 +66,6 @@ static unsigned long hash_function(char *s) {
     for (int j = 0; s[j]; j++) {
         i += s[j];
     }
-
     return i;
 }
 
@@ -60,17 +77,70 @@ static unsigned long hash_function(char *s) {
  * @return True if the entry was initialized successfully, false otherwise.
  */
 static Entry *entry_init(char *id, Command *command) {
-    // STUDENT TODO: Initialize the entry and its fields
-    return NULL;
+    Entry *new_entry = (Entry *) malloc(sizeof(Entry));
+    if (!new_entry) {
+        return NULL;
+    }
+    new_entry->id = malloc(strlen(id) + 1);
+    if (!new_entry->id) {
+        free(new_entry);
+        return NULL;
+    }
+    strcpy(new_entry->id, id);
+
+    if (!new_entry->id) {
+        free(new_entry);
+        return NULL;
+    }
+    new_entry->command = command;
+    new_entry->next    = NULL;
+    return new_entry;
 }
 
 bool put_label(LabelMap *map, char *id, Command *command) {
-    // STUDENT TODO: Put the given command into the bucket associated with this label
-    // It is okay for the command to be null
-    return false;
+    if (!map || !id) {
+        return false;
+    }
+    unsigned long index   = hash_function(id) % map->capacity;
+    Entry        *prev    = NULL;
+    Entry        *current = map->entries[index];
+
+    while (current) {
+        if (strcmp(current->id, id) == 0) {
+            current->command = command;
+            return true;
+        }
+        prev    = current;
+        current = current->next;
+    }
+
+    Entry *new_entry = entry_init(id, command);
+    if (!new_entry) {
+        return false;
+    }
+
+    if (prev) {
+        prev->next = new_entry;
+    } else {
+        map->entries[index] = new_entry;
+    }
+
+    return true;
 }
 
 Entry *get_label(LabelMap *map, char *id) {
-    // STUDENT TODO: Retrieve the value associated with this label
+    if (!map || !id) {
+        return NULL;
+    }
+    unsigned long index   = hash_function(id) % map->capacity;
+    Entry        *current = map->entries[index];
+
+    while (current) {
+        if (strcmp(current->id, id) == 0) {
+            return current;
+        }
+        current = current->next;
+    }
+
     return NULL;
 }

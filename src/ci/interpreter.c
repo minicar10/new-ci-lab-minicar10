@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "command_type.h"
@@ -26,6 +27,14 @@ void interpreter_init(Interpreter *intr, LabelMap *map) {
 
     for (size_t i = 0; i < NUM_VARIABLES; i++) {
         intr->variables[i] = 0;
+    }
+}
+
+static void free_stack(Interpreter *intr) {
+    while (intr->the_stack != NULL) {
+        StackEntry *temp = intr->the_stack;
+        intr->the_stack  = intr->the_stack->next;
+        free(temp);
     }
 }
 
@@ -210,6 +219,74 @@ void interpret(Interpreter *intr, Command *commands) {
                 break;
             }
 
+            case CMD_BRANCH: {
+                if (current->branch_condition == BRANCH_ALWAYS ||
+                    cond_holds(intr, current->branch_condition)) {
+                    Entry *entry = get_label(intr->label_map, current->val_a.str_val);
+                    if (entry == NULL) {
+                        printf("Label not found: %s\n", current->val_a.str_val);
+                        intr->had_error = true;
+                        free_stack(intr);
+                        return;
+                    }
+                    if (entry->command == NULL) {
+                        if (current->val_a.str_val[0] == '.') {
+                            current = NULL;
+                        } else {
+                            printf("Label not found: %s\n", current->val_a.str_val);
+                            intr->had_error = true;
+                            free_stack(intr);
+                            return;
+                        }
+                    } else {
+                        current = entry->command;
+                    }
+                } else {
+                    current = current->next;
+                }
+                break;
+            }
+
+            case CMD_CALL: {
+                StackEntry *new_entry = malloc(sizeof(StackEntry));
+                if (!new_entry) {
+                    intr->had_error = true;
+                    free_stack(intr);
+                    return;
+                }
+                memcpy(new_entry->variables, intr->variables, sizeof(intr->variables));
+                new_entry->command = current->next;
+                new_entry->next    = intr->the_stack;
+                intr->the_stack    = new_entry;
+                Entry *entry       = get_label(intr->label_map, current->val_a.str_val);
+                if (entry && entry->command != NULL) {
+                    current = entry->command;
+                } else {
+                    printf("Label not found: %s\n", current->val_a.str_val);
+                    intr->had_error = true;
+                    free_stack(intr);
+                    return;
+                }
+                break;
+            }
+
+            case CMD_RET: {
+                if (intr->the_stack) {
+                    StackEntry *return_entry = intr->the_stack;
+                    intr->the_stack          = return_entry->next;
+
+                    for (int i = 1; i < NUM_VARIABLES; i++) {
+                        intr->variables[i] = return_entry->variables[i];
+                    }
+
+                    current = return_entry->command;
+                    free(return_entry);
+                } else {
+                    current = NULL;
+                }
+                break;
+            }
+
             default:
                 intr->had_error = true;
                 current         = current->next;
@@ -217,7 +294,7 @@ void interpret(Interpreter *intr, Command *commands) {
         }
     }
 
-    // Week 4: free the stack at the end
+    free_stack(intr);
 }
 
 void print_interpreter_state(Interpreter *intr) {
@@ -275,8 +352,24 @@ static int64_t fetch_number_value(Interpreter *intr, Operand *op, bool is_im) {
  * @return True if the given condition holds, false otherwise.
  */
 static bool cond_holds(Interpreter *intr, BranchCondition cond) {
-    // STUDENT TODO: Determine whether a given condition holds using the interpreter's state
-    return false;
+    switch (cond) {
+        case BRANCH_ALWAYS:
+            return true;
+        case BRANCH_EQUAL:
+            return intr->is_equal;
+        case BRANCH_GREATER_EQUAL:
+            return intr->is_greater || intr->is_equal;
+        case BRANCH_GREATER:
+            return intr->is_greater;
+        case BRANCH_LESS_EQUAL:
+            return intr->is_less || intr->is_equal;
+        case BRANCH_LESS:
+            return intr->is_less;
+        case BRANCH_NOT_EQUAL:
+            return !intr->is_equal;
+        default:
+            return false;
+    }
 }
 
 /**

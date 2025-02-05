@@ -378,9 +378,20 @@ static Command *parse_cmd(Parser *parser) {
     // However, this is fine for getting going
     Token token = parser->current;
 
-    if (token.type == TOK_IDENT) {
-        // TODO Week 4: Handle labels
-        // be careful of edge cases!
+    if (token.type == TOK_IDENT && parser->next.type == TOK_COLON) {
+        Token label_token = parser->current;
+        advance(parser);
+        consume(parser, TOK_COLON);
+        Command *cmd       = parse_cmd(parser);
+        char    *label_str = malloc(label_token.length + 1);
+        if (!label_str) {
+            parser->had_error = true;
+            return NULL;
+        }
+        memcpy(label_str, label_token.lexeme, label_token.length);
+        label_str[label_token.length] = '\0';
+        put_label(parser->label_map, label_str, cmd);
+        return cmd;
     }
 
     if (token.type == TOK_EOF) {
@@ -604,7 +615,7 @@ static Command *parse_cmd(Parser *parser) {
                 return NULL;
             }
 
-            advance(parser); 
+            advance(parser);
             return cmd;
         }
 
@@ -970,6 +981,127 @@ static Command *parse_cmd(Parser *parser) {
             }
 
             advance(parser);
+            return cmd;
+        }
+
+        case TOK_BRANCH:
+        case TOK_BRANCH_EQ:
+        case TOK_BRANCH_GE:
+        case TOK_BRANCH_GT:
+        case TOK_BRANCH_LE:
+        case TOK_BRANCH_LT:
+        case TOK_BRANCH_NEQ: {
+            Command *cmd = create_command(CMD_BRANCH);
+            if (!cmd) {
+                parser->had_error = true;
+                return NULL;
+            }
+
+            switch (token.type) {
+                case TOK_BRANCH:
+                    cmd->branch_condition = BRANCH_ALWAYS;
+                    break;
+                case TOK_BRANCH_EQ:
+                    cmd->branch_condition = BRANCH_EQUAL;
+                    break;
+                case TOK_BRANCH_GE:
+                    cmd->branch_condition = BRANCH_GREATER_EQUAL;
+                    break;
+                case TOK_BRANCH_GT:
+                    cmd->branch_condition = BRANCH_GREATER;
+                    break;
+                case TOK_BRANCH_LE:
+                    cmd->branch_condition = BRANCH_LESS_EQUAL;
+                    break;
+                case TOK_BRANCH_LT:
+                    cmd->branch_condition = BRANCH_LESS;
+                    break;
+                case TOK_BRANCH_NEQ:
+                    cmd->branch_condition = BRANCH_NOT_EQUAL;
+                    break;
+                default:
+                    break;
+            }
+
+            advance(parser);
+            if (parser->current.type != TOK_IDENT) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
+            size_t len         = parser->current.length;
+            cmd->val_a.str_val = malloc(len + 1);
+            if (!cmd->val_a.str_val) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
+            memcpy(cmd->val_a.str_val, parser->current.lexeme, len);
+            cmd->val_a.str_val[len] = '\0';
+            cmd->is_a_string        = true;
+            advance(parser);
+            if (parser->current.type != TOK_NL && parser->current.type != TOK_EOF) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
+            advance(parser);
+
+            if (!get_label(parser->label_map, cmd->val_a.str_val)) {
+                put_label(parser->label_map, cmd->val_a.str_val, NULL);
+            }
+            return cmd;
+        }
+
+        case TOK_RET: {
+            Command *cmd = create_command(CMD_RET);
+            if (!cmd) {
+                parser->had_error = true;
+                return NULL;
+            }
+            advance(parser);
+            if (parser->current.type != TOK_NL && parser->current.type != TOK_EOF) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
+            advance(parser);
+            return cmd;
+        }
+
+        case TOK_CALL: {
+            Command *cmd = create_command(CMD_CALL);
+            if (!cmd) {
+                parser->had_error = true;
+                return NULL;
+            }
+            advance(parser);
+            if (parser->current.type != TOK_IDENT) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
+            size_t len         = parser->current.length;
+            cmd->val_a.str_val = malloc(len + 1);
+            if (!cmd->val_a.str_val) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
+            memcpy(cmd->val_a.str_val, parser->current.lexeme, len);
+            cmd->val_a.str_val[len] = '\0';
+            cmd->is_a_string        = true;
+            advance(parser);
+            if (parser->current.type != TOK_NL && parser->current.type != TOK_EOF) {
+                parser->had_error = true;
+                free_command(cmd);
+                return NULL;
+            }
+            advance(parser);
+
+            if (!get_label(parser->label_map, cmd->val_a.str_val)) {
+                put_label(parser->label_map, cmd->val_a.str_val, NULL);
+            }
             return cmd;
         }
 
