@@ -390,7 +390,14 @@ static Command *parse_cmd(Parser *parser) {
         }
         memcpy(label_str, label_token.lexeme, label_token.length);
         label_str[label_token.length] = '\0';
-        put_label(parser->label_map, label_str, cmd);
+
+        if (!put_label(parser->label_map, label_str, cmd)) {
+            free(label_str);
+            parser->had_error = true;
+            free_command(cmd);
+            return NULL;
+        }
+        free(label_str);
         return cmd;
     }
 
